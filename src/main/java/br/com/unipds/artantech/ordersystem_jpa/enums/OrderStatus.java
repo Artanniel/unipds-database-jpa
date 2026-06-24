@@ -8,31 +8,47 @@ package br.com.unipds.artantech.ordersystem_jpa.enums;
  * ao inves do ordinal (posicao numerica), o que e mais seguro e legivel.
  *
  * Fluxo de estados tipico:
- * CREATED -> PAID (quando o pagamento e confirmado)
- * CREATED -> CANCELLED (quando o pedido e cancelado antes do pagamento)
- * PAID -> CANCELLED (estorno/cancelamento apos pagamento)
+ * CREATED -> PROCESSING (quando o pagamento e confirmado e o pedido entra em
+ * separacao)
+ * PROCESSING -> SHIPPED (quando o pedido e despachado)
+ * SHIPPED -> DELIVERED (quando o pedido e entregue)
+ * CREATED -> CANCELLED (cancelamento antes do pagamento)
  *
- * @see br.com.unipds.ordersystemjpa.entity.Order
+ * @see br.com.unipds.artantech.ordersystem_jpa.entity.Order
  */
 public enum OrderStatus {
 
     /**
-     * Pedido pendente.
+     * Pedido pendente de acao.
      * Criado pelo projeto JDBC.
      */
     PENDING,
 
     /**
      * Pedido criado mas ainda nao pago.
-     * Estado inicial de todo pedido.
+     * Estado inicial de todo pedido no sistema JPA.
      */
     CREATED,
 
     /**
      * Pedido pago e confirmado.
-     * Transicao tipica: CREATED -> PAID
      */
     PAID,
+
+    /**
+     * Pedido em processamento/separacao no estoque.
+     */
+    PROCESSING,
+
+    /**
+     * Pedido despachado para entrega.
+     */
+    SHIPPED,
+
+    /**
+     * Pedido entregue ao destinatario.
+     */
+    DELIVERED,
 
     /**
      * Pedido cancelado pelo usuario ou sistema.

@@ -232,6 +232,17 @@ A imagem abaixo mostra o terminal do IntelliJ IDEA durante a execução do proje
 
 ![ER do Banco de Dados](src/main/resources/doc/Database_EER_2026-06-24%2000-11-29.png)
 
+ER do Banco de Dados com flyway:
+![ER do Banco de Dados com flyway](src/main/resources/doc/Database_EER_With_Flyway_2026-06-24%2000-11-29.png)
+
+Flyway tables:
+![Flyway tables](src/main/resources/doc/Database_Flyway_2026-06-24%2000-11-29.png)
+
+Users table:
+![Users table](src/main/resources/doc/Database_Users_2026-06-24%2000-11-29.png)
+
+
+
 ## 👨‍💻 Autor
 
 **Artanniel Fortes** — Aluno UniPDS  
