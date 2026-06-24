@@ -1,0 +1,33 @@
+version: "3.8"
+
+services:
+  mysql:
+    # Usando mysql:9.7.1 conforme solicitado, embora a imagem oficial no Docker Hub
+    # possa não ter essa tag exata disponível ainda. Se a imagem falhar ao baixar,
+    # mude para "mysql:9" ou "mysql:latest".
+    image: mysql:9.7.1
+    container_name: unipds_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: s3nH4SuP3rS3gur4
+      MYSQL_DATABASE: unipds-database
+      MYSQL_USER: usuarioSeguro
+      MYSQL_PASSWORD: s3nH4SuP3rS3gur4
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+#  phpmyadmin:
+#    image: docker.io/phpmyadmin/phpmyadmin
+#    container_name: unipds_phpmyadmin
+#    restart: always
+#    ports:
+#      - "8080:80"
+#    environment:
+#      PMA_HOST: mysql # Aponta para o nome do serviço mysql acima
+#    depends_on:
+#      - mysql
+
+volumes:
+  mysql_data:
