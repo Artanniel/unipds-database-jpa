@@ -1,0 +1,36 @@
+databaseChangeLog:
+  # ============================================================
+  # MASTER CHANGELOG - OrderSystem Liquibase (YAML Format)
+  # ============================================================
+  #
+  # Este arquivo orquestra a execução de todas as migrations do banco de dados
+  # na ordem correta.
+  #
+  # ORDEM DE EXECUÇÃO:
+  # 1. Criação do schema (tabelas, indexes, foreign keys)
+  # 2. Seed de dados básicos (users, products)
+  # 3. Seed de dados relacionais (orders, order_items, product_reviews)
+  #
+  # IMPORTANTE: Nunca altere a ordem dos includes após deployment em produção!
+  # ============================================================
+
+  # STEP 1: Create database schema
+  - include:
+      file: db/changelog/01-create-schema.yml
+
+  # STEP 2: Seed base data (independent tables)
+  - include:
+      file: db/changelog/02-seed-users.sql
+
+  - include:
+      file: db/changelog/03-seed-products.sql
+
+  # STEP 3: Seed relational data (dependent tables)
+  - include:
+      file: db/changelog/04-seed-orders.sql
+
+  - include:
+      file: db/changelog/05-seed-order-items.sql
+
+  - include:
+      file: db/changelog/06-seed-product-reviews.sql

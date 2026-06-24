@@ -38,5 +38,23 @@ public enum OrderStatus {
      * Pedido cancelado pelo usuario ou sistema.
      * Pode ocorrer em qualquer estado anterior.
      */
-    CANCELLED
+    CANCELLED,
+
+    /**
+     * Pedido em processamento/separacao.
+     * Transicao tipica: PAID -> PROCESSING
+     */
+    PROCESSING,
+
+    /**
+     * Pedido enviado para entrega.
+     * Transicao tipica: PROCESSING -> SHIPPED
+     */
+    SHIPPED,
+
+    /**
+     * Pedido entregue ao destinatario.
+     * Estado final positivo: SHIPPED -> DELIVERED
+     */
+    DELIVERED
 }

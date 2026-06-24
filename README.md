@@ -19,6 +19,7 @@ O **OrderSystem JPA** é uma aplicação Spring Boot que modela um sistema de pe
 | 🔗 Spring Data JPA | (gerenciado pelo Boot) | Camada de persistência (ORM) |
 | 🐬 MySQL Connector/J | (gerenciado pelo Boot) | Driver JDBC para MySQL |
 | 🏗️ Hibernate | (gerenciado pelo Boot) | Implementação JPA |
+| 🧪 Liquibase | (gerenciado pelo Boot) | Versionamento e migração do banco de dados |
 | 🔧 Maven | 3.x | Gerenciador de dependências e build |
 | 🐳 Podman Compose | 1.x | Orquestração do container MySQL |
 
@@ -50,7 +51,15 @@ unipds-database-jpa/
 │   │       └── UserRepository.java
 │   │
 │   └── 📁 resources/
-│       └── application.yml
+│       ├── application.yml
+│       └── 📁 db/changelog/                # Migrations do Liquibase
+│           ├── db.changelog-master.yml     # Arquivo orquestrador (entry point)
+│           ├── 01-create-schema.yml        # Criação de tabelas, índices e FKs
+│           ├── 02-seed-users.sql           # Seed: 20 usuários
+│           ├── 03-seed-products.sql        # Seed: 20 produtos
+│           ├── 04-seed-orders.sql          # Seed: 20 pedidos
+│           ├── 05-seed-order-items.sql     # Seed: itens dos pedidos
+│           └── 06-seed-product-reviews.sql # Seed: avaliações de produtos
 │
 ├── pom.xml
 └── README.md
@@ -108,20 +117,31 @@ podman-compose -f src/main/docker/podman-compose.yml down
 
 ### 2. Verifique o `application.yml`
 
-As credenciais já estão configuradas para apontar para o container:
+As credenciais e as configurações do Liquibase já estão prontas:
 
 ```yaml
 # src/main/resources/application.yml
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/unipds-database
-    username: usuarioSeguro
+    url: jdbc:mysql://localhost:3306/ordersystem_db?useSSL=true&serverTimezone=UTC
+    username: root
     password: s3nH4SuP3rS3gur4
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+
+  liquibase:
+    enabled: true                                          # Ativa o Liquibase
+    change-log: classpath:db/changelog/db.changelog-master.yml  # Entry point
+    drop-first: false                                      # Nunca dropa o banco em produção!
+
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate   # Hibernate apenas valida o schema; o Liquibase que cria
     show-sql: true
 ```
+
+> **⚠️ Importante:** Com Liquibase ativo, o `ddl-auto` deve ser `validate` (ou `none`). O Hibernate **não** cria nem altera tabelas — essa responsabilidade passa a ser 100% do Liquibase.
 
 ### 3. Execute a aplicação
 
@@ -143,6 +163,180 @@ Aplicação inicia
       → ✅ Pedidos criados / verificados
       → ✅ Queries JPQL executadas
       → ✅ Native Queries executadas
+```
+
+---
+
+## 🧪 Liquibase — Versionamento de Banco de Dados
+
+O **Liquibase** é uma ferramenta de **Database Version Control** integrada ao Spring Boot. Em vez de criar o schema manualmente ou depender do `ddl-auto: create` do Hibernate, o Liquibase controla cada alteração no banco por meio de arquivos de migração chamados **ChangeSets**.
+
+### Por que usar o Liquibase?
+
+| Situação | Sem Liquibase | Com Liquibase |
+|---|---|---|
+| Novo desenvolvedor entra no projeto | Precisa rodar scripts manualmente | `./mvnw spring-boot:run` já aplica tudo |
+| Schema muda em produção | SQL manual com risco de erro | Migration versionada e auditada |
+| Rollback necessário | Complexo e arriscado | Suporte nativo a `rollback` |
+| Ambientes diferentes (dev/prod) | Scripts inconsistentes | Um único changelog para todos |
+
+---
+
+### 📦 Dependência no `pom.xml`
+
+```xml
+<dependency>
+    <groupId>org.liquibase</groupId>
+    <artifactId>liquibase-core</artifactId>
+    <!-- Versão gerenciada pelo Spring Boot Parent -->
+</dependency>
+```
+
+---
+
+### 🗂️ Estrutura dos Changelogs
+
+O Liquibase é configurado para buscar o arquivo entry point em `classpath:db/changelog/db.changelog-master.yml`.
+Esse arquivo **orquestra** todos os demais na ordem correta:
+
+```yaml
+# db.changelog-master.yml
+databaseChangeLog:
+  # STEP 1: Cria o schema (tabelas, índices, FKs)
+  - include:
+      file: db/changelog/01-create-schema.yml
+
+  # STEP 2: Seed de dados base (tabelas independentes)
+  - include:
+      file: db/changelog/02-seed-users.sql
+  - include:
+      file: db/changelog/03-seed-products.sql
+
+  # STEP 3: Seed relacional (tabelas com FK)
+  - include:
+      file: db/changelog/04-seed-orders.sql
+  - include:
+      file: db/changelog/05-seed-order-items.sql
+  - include:
+      file: db/changelog/06-seed-product-reviews.sql
+```
+
+> **⚠️ Regra de Ouro:** Nunca altere a **ordem** dos includes após o primeiro deploy. O Liquibase rastreia cada arquivo pelo hash — reordenar quebra a consistência entre ambientes.
+
+---
+
+### 📝 Conceitos Fundamentais
+
+#### ChangeSet
+A unidade mínima de migração. Cada `changeSet` tem um `id` único e um `author`, formando uma identidade imutável.
+
+```yaml
+# Exemplo de changeSet em 01-create-schema.yml
+- changeSet:
+    id: 1
+    author: ordersystem
+    changes:
+      - createTable:
+          tableName: users
+          columns:
+            - column:
+                name: id
+                type: BIGINT
+                autoIncrement: true
+                constraints:
+                  primaryKey: true
+```
+
+#### DATABASECHANGELOG
+Tabela interna criada automaticamente pelo Liquibase no banco. Registra cada `changeSet` executado com seu hash MD5, data e autor — garantindo que cada migration rode **apenas uma vez**.
+
+| Coluna | Descrição |
+|---|---|
+| `ID` | ID do changeSet |
+| `AUTHOR` | Autor declarado |
+| `FILENAME` | Arquivo de origem |
+| `DATEEXECUTED` | Data de execução |
+| `MD5SUM` | Hash do conteúdo — detecta alterações indevidas |
+| `EXECTYPE` | `EXECUTED` ou `RERAN` |
+
+#### DATABASECHANGELOGLOCK
+Tabela de lock para garantir que apenas **uma instância** da aplicação rode migrations ao mesmo tempo (essencial em deploys com múltiplas réplicas).
+
+---
+
+### 🔄 Fluxo de Execução
+
+Cada vez que a aplicação sobe, o Liquibase executa o seguinte ciclo:
+
+```
+Aplicação inicia
+  → Liquibase adquire o LOCK no banco
+    → Lê db.changelog-master.yml
+      → Para cada changeSet:
+          ✅ Já aplicado (hash igual)?  → Pula
+          ⚠️  Hash diferente?           → Lança ERRO (alteração indevida)
+          🆕 Ainda não aplicado?        → Executa e registra no DATABASECHANGELOG
+    → Libera o LOCK
+      → Spring Boot continua a inicialização
+        → Hibernate valida o schema (ddl-auto: validate)
+          → DatabaseSeeder executa as queries de demonstração
+```
+
+---
+
+### 📋 ChangeSets do Projeto
+
+O arquivo `01-create-schema.yml` contém **14 ChangeSets** que criam todo o schema:
+
+| ID | Descrição |
+|---|---|
+| 1 | Cria tabela `users` |
+| 2 | Cria tabela `products` |
+| 3 | Cria tabela `orders` |
+| 4 | FK `orders.user_id → users.id` (CASCADE) |
+| 5 | Índice em `orders.user_id` |
+| 6 | Cria tabela `order_items` |
+| 7 | FK `order_items.product_id → products.id` (CASCADE) |
+| 8 | FK `order_items.order_id → orders.id` (CASCADE) |
+| 9 | Índices em `order_items` (product_id, order_id) |
+| 10 | Cria tabela `product_reviews` (PK composta) |
+| 11 | Adiciona PK composta `(user_id, product_id)` |
+| 12 | FK `product_reviews.user_id → users.id` (CASCADE) |
+| 13 | FK `product_reviews.product_id → products.id` (CASCADE) |
+| 14 | Índice em `product_reviews.product_id` |
+
+---
+
+### 🖼️ Evidências do Liquibase em Execução
+
+ER do banco gerado via Liquibase:
+
+![ER do Banco de Dados com Liquibase](src/main/resources/doc/Database_liquibase_diagram_2026-06-24%2000-11-29.png)
+
+Tabela `DATABASECHANGELOG` no MySQL:
+
+![Tabela DATABASECHANGELOG](src/main/resources/doc/Database_liquibase_table_2026-06-24%2000-11-29.png)
+
+Logs de execução das migrations:
+
+![Logs de execução com Liquibase](src/main/resources/doc/Database_run_liquibase_2026-06-24%2000-11-29.png)
+
+---
+
+### 🔧 Comandos Úteis do Liquibase via Maven
+
+```bash
+# Ver o status de todas as migrations (quais foram aplicadas)
+./mvnw liquibase:status
+
+# Gerar um changelog a partir do banco atual (útil para documentar)
+./mvnw liquibase:generateChangeLog
+
+# Validar o changelog sem executar
+./mvnw liquibase:validate
+
+# Rollback da última migration (requer rollbackTag)
+./mvnw liquibase:rollback -Dliquibase.rollbackTag=1.0
 ```
 
 ---

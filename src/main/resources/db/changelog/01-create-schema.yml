@@ -1,0 +1,328 @@
+databaseChangeLog:
+
+  # ===================================================
+  # ChangeSet 1: Create table users
+  # ===================================================
+  - changeSet:
+      id: 1
+      author: ordersystem
+      changes:
+        - createTable:
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: email
+                  type: VARCHAR(150)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+  # ===================================================
+  # ChangeSet 2: Create table products
+  # ===================================================
+  - changeSet:
+      id: 2
+      author: ordersystem
+      changes:
+        - createTable:
+            tableName: products
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(120)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: price
+                  type: DECIMAL(10,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: stock
+                  type: INT
+                  defaultValue: 0
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+  # ===================================================
+  # ChangeSet 3: Create table orders
+  # ===================================================
+  - changeSet:
+      id: 3
+      author: ordersystem
+      changes:
+        - createTable:
+            tableName: orders
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: total
+                  type: DECIMAL(10,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  defaultValue: CREATED
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+              - column:
+                  name: user_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+
+  # ===================================================
+  # ChangeSet 4: Add foreign key orders.user_id -> users.id
+  # ===================================================
+  - changeSet:
+      id: 4
+      author: ordersystem
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: orders
+            baseColumnNames: user_id
+            constraintName: fk_orders_user
+            referencedTableName: users
+            referencedColumnNames: id
+            onDelete: CASCADE
+            onUpdate: CASCADE
+
+  # ===================================================
+  # ChangeSet 5: Create index on orders.user_id
+  # ===================================================
+  - changeSet:
+      id: 5
+      author: ordersystem
+      changes:
+        - createIndex:
+            indexName: fk_orders_user_idx
+            tableName: orders
+            columns:
+              - column:
+                  name: user_id
+
+  # ===================================================
+  # ChangeSet 6: Create table order_items
+  # ===================================================
+  - changeSet:
+      id: 6
+      author: ordersystem
+      changes:
+        - createTable:
+            tableName: order_items
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: quantity
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: subtotal
+                  type: DECIMAL(10,2)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+              - column:
+                  name: product_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: order_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+
+  # ===================================================
+  # ChangeSet 7: Add foreign key order_items.product_id -> products.id
+  # ===================================================
+  - changeSet:
+      id: 7
+      author: ordersystem
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: order_items
+            baseColumnNames: product_id
+            constraintName: fk_order_items_product
+            referencedTableName: products
+            referencedColumnNames: id
+            onDelete: CASCADE
+            onUpdate: CASCADE
+
+  # ===================================================
+  # ChangeSet 8: Add foreign key order_items.order_id -> orders.id
+  # ===================================================
+  - changeSet:
+      id: 8
+      author: ordersystem
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: order_items
+            baseColumnNames: order_id
+            constraintName: fk_order_items_order
+            referencedTableName: orders
+            referencedColumnNames: id
+            onDelete: CASCADE
+            onUpdate: CASCADE
+
+  # ===================================================
+  # ChangeSet 9: Create indexes on order_items foreign keys
+  # ===================================================
+  - changeSet:
+      id: 9
+      author: ordersystem
+      changes:
+        - createIndex:
+            indexName: fk_order_items_product_idx
+            tableName: order_items
+            columns:
+              - column:
+                  name: product_id
+        - createIndex:
+            indexName: fk_order_items_order_idx
+            tableName: order_items
+            columns:
+              - column:
+                  name: order_id
+
+  # ===================================================
+  # ChangeSet 10: Create table product_reviews (composite primary key)
+  # ===================================================
+  - changeSet:
+      id: 10
+      author: ordersystem
+      changes:
+        - createTable:
+            tableName: product_reviews
+            remarks: "Exemplo de tabela com chave primaria composta (user_id, product_id)"
+            columns:
+              - column:
+                  name: user_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: product_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: rating
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: comment
+                  type: VARCHAR(500)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+  # ===================================================
+  # ChangeSet 11: Add composite primary key to product_reviews
+  # ===================================================
+  - changeSet:
+      id: 11
+      author: ordersystem
+      changes:
+        - addPrimaryKey:
+            tableName: product_reviews
+            columnNames: user_id, product_id
+            constraintName: pk_product_reviews
+
+  # ===================================================
+  # ChangeSet 12: Add foreign key product_reviews.user_id -> users.id
+  # ===================================================
+  - changeSet:
+      id: 12
+      author: ordersystem
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: product_reviews
+            baseColumnNames: user_id
+            constraintName: fk_reviews_user
+            referencedTableName: users
+            referencedColumnNames: id
+            onDelete: CASCADE
+            onUpdate: CASCADE
+
+  # ===================================================
+  # ChangeSet 13: Add foreign key product_reviews.product_id -> products.id
+  # ===================================================
+  - changeSet:
+      id: 13
+      author: ordersystem
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: product_reviews
+            baseColumnNames: product_id
+            constraintName: fk_reviews_product
+            referencedTableName: products
+            referencedColumnNames: id
+            onDelete: CASCADE
+            onUpdate: CASCADE
+
+  # ===================================================
+  # ChangeSet 14: Create index on product_reviews.product_id
+  # ===================================================
+  - changeSet:
+      id: 14
+      author: ordersystem
+      changes:
+        - createIndex:
+            indexName: fk_reviews_products_idx
+            tableName: product_reviews
+            columns:
+              - column:
+                  name: product_id
