@@ -230,6 +230,8 @@ A imagem abaixo mostra o terminal do IntelliJ IDEA durante a execução do proje
 
 ---
 
+![ER do Banco de Dados](src/main/resources/doc/Database_EER_2026-06-24%2000-11-29.png)
+
 ## 👨‍💻 Autor
 
 **Artanniel Fortes** — Aluno UniPDS  
