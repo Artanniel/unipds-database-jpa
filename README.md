@@ -19,6 +19,7 @@ O **OrderSystem JPA** é uma aplicação Spring Boot que modela um sistema de pe
 | 🔗 Spring Data JPA | (gerenciado pelo Boot) | Camada de persistência (ORM) |
 | 🐬 MySQL Connector/J | (gerenciado pelo Boot) | Driver JDBC para MySQL |
 | 🏗️ Hibernate | (gerenciado pelo Boot) | Implementação JPA |
+| 🗂️ Flyway | (gerenciado pelo Boot) | Versionamento e migrations do schema |
 | 🔧 Maven | 3.x | Gerenciador de dependências e build |
 | 🐳 Podman Compose | 1.x | Orquestração do container MySQL |
 
@@ -50,7 +51,14 @@ unipds-database-jpa/
 │   │       └── UserRepository.java
 │   │
 │   └── 📁 resources/
-│       └── application.yml
+│       ├── application.yml
+│       └── 📁 db/migration/                  # Scripts Flyway (versionados)
+│           ├── V1__create_tables.sql           # Criação de todas as tabelas
+│           ├── V2__seed_users.sql              # Seed: 20 usuários
+│           ├── V3__seed_products.sql           # Seed: 20 produtos
+│           ├── V4__seed_orders.sql             # Seed: 20 pedidos
+│           ├── V5__seed_order_items.sql        # Seed: 20 itens de pedido
+│           └── V6__seed_product_reviews.sql    # Seed: 20 avaliações de produto
 │
 ├── pom.xml
 └── README.md
@@ -114,13 +122,27 @@ As credenciais já estão configuradas para apontar para o container:
 # src/main/resources/application.yml
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/unipds-database
-    username: usuarioSeguro
+    url: jdbc:mysql://localhost:3306/ordersystem_db?useSSL=true&serverTimezone=UTC&characterEncoding=UTF-8
+    username: root
     password: s3nH4SuP3rS3gur4
+    hikari:
+      auto-commit: false
+      connection-timeout: 250
+      max-lifetime: 600000
+      maximum-pool-size: 20
+      minimum-idle: 10
+      pool-name: master
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: false
+    out-of-order: true
   jpa:
+    open-in-view: false
+    show-sql: true
     hibernate:
       ddl-auto: update
-    show-sql: true
 ```
 
 ### 3. Execute a aplicação
@@ -144,6 +166,130 @@ Aplicação inicia
       → ✅ Queries JPQL executadas
       → ✅ Native Queries executadas
 ```
+
+---
+
+## 🗂️ Gerenciamento de Schema com Flyway
+
+O projeto utiliza o **Flyway** para controle de versão do schema do banco de dados. Cada migration é um script SQL numerado que é executado **uma única vez**, em ordem, garantindo que qualquer desenvolvedor parta sempre do mesmo estado de banco.
+
+### Por que Flyway?
+
+| Problema sem Flyway | Solução com Flyway |
+|---|---|
+| "Funciona na minha máquina" | Estado do banco versionado no Git |
+| Scripts SQL espalhados e sem ordem | Sequência determinística V1 → V2 → ... |
+| Rollback manual e arriscado | Histórico auditável na `flyway_schema_history` |
+| Dificuldade de onboarding | Banco recriado automaticamente ao subir a app |
+
+### Dependências (`pom.xml`)
+
+```xml
+<!-- Engine principal do Flyway -->
+<dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-core</artifactId>
+</dependency>
+
+<!-- Suporte específico para MySQL/MariaDB -->
+<dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-mysql</artifactId>
+</dependency>
+
+<!-- Plugin Maven para rodar migrations via linha de comando -->
+<plugin>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-maven-plugin</artifactId>
+</plugin>
+```
+
+### Configuração (`application.yml`)
+
+```yaml
+spring:
+  flyway:
+    enabled: true              # Ativa o Flyway ao iniciar a aplicação
+    baseline-on-migrate: true  # Cria a linha-base se o banco já existir (evita erros em DBs pré-existentes)
+    locations: classpath:db/migration  # Diretório onde os scripts estão
+    validate-on-migrate: false # Desabilita validação de checksum (útil durante desenvolvimento)
+    out-of-order: true         # Permite rodar migrations fora de ordem (útil em branches paralelas)
+```
+
+> **⚠️ Atenção em produção:** `validate-on-migrate: false` e `out-of-order: true` são úteis no ambiente acadêmico/desenvolvimento, mas em produção o recomendado é manter ambos como `true`/`false` para garantir integridade.
+
+### Scripts de Migration (`db/migration/`)
+
+O Flyway aplica os scripts em ordem crescente de versão. A convenção de nomenclatura é:
+
+```
+V{versão}__{descrição}.sql
+   │              └─ Underscores viram espaços na descrição
+   └─ Número da versão (inteiro ou decimal: V1, V1.1, V2...)
+```
+
+| Arquivo | Versão | Descrição | Registros |
+|---|---|---|---|
+| `V1__create_tables.sql` | 1 | Cria as 5 tabelas do schema (`users`, `products`, `orders`, `order_items`, `product_reviews`) | — |
+| `V2__seed_users.sql` | 2 | Popula a tabela `users` com dados de exemplo | 20 usuários |
+| `V3__seed_products.sql` | 3 | Popula a tabela `products` com produtos variados | 20 produtos |
+| `V4__seed_orders.sql` | 4 | Popula a tabela `orders` com pedidos vinculados a usuários | 20 pedidos |
+| `V5__seed_order_items.sql` | 5 | Popula `order_items` com itens associados a pedidos e produtos | 20 itens |
+| `V6__seed_product_reviews.sql` | 6 | Popula `product_reviews` com avaliações de usuários sobre produtos | 20 avaliações |
+
+### Fluxo de Execução
+
+Ao executar `./mvnw spring-boot:run`, o Flyway é acionado **antes** do Hibernate e do `DatabaseSeeder`:
+
+```
+Aplicação inicia
+  → Flyway verifica a tabela flyway_schema_history
+    → Detecta migrations pendentes
+      → ✅ V1__create_tables.sql       aplicado
+      → ✅ V2__seed_users.sql          aplicado
+      → ✅ V3__seed_products.sql       aplicado
+      → ✅ V4__seed_orders.sql         aplicado
+      → ✅ V5__seed_order_items.sql    aplicado
+      → ✅ V6__seed_product_reviews.sql aplicado
+  → Hibernate valida o schema
+  → DatabaseSeeder.run() é chamado
+    → Consultas JPQL e Native Queries são executadas
+```
+
+### Tabela de Controle `flyway_schema_history`
+
+O Flyway mantém um registro de todas as migrations aplicadas. Você pode consultá-la diretamente:
+
+```sql
+SELECT installed_rank, version, description, type, script, checksum, success
+FROM ordersystem_db.flyway_schema_history
+ORDER BY installed_rank;
+```
+
+### Comandos Maven do Flyway
+
+```bash
+# Aplicar todas as migrations pendentes manualmente
+./mvnw flyway:migrate
+
+# Ver o status atual de cada migration
+./mvnw flyway:info
+
+# Validar se os scripts no disco batem com o histórico do banco
+./mvnw flyway:validate
+
+# ⚠️ CUIDADO: apaga todo o schema (somente se clean-disabled=false)
+./mvnw flyway:clean
+```
+
+### Troubleshooting Comum
+
+| Erro | Causa | Solução |
+|---|---|---|
+| `Migration checksum mismatch` | Script SQL foi editado após ser aplicado | Não edite migrations já aplicadas; crie uma nova versão |
+| `Table already exists` | Banco criado manualmente antes do Flyway | Use `baseline-on-migrate: true` ou rode `flyway:baseline` |
+| `Found non-empty schema without schema history` | Banco com dados mas sem `flyway_schema_history` | Defina `baseline-on-migrate: true` no `application.yml` |
+| `Migration out of order` | Versão menor sendo aplicada depois de maior | Ative `out-of-order: true` ou reorganize os scripts |
 
 ---
 
